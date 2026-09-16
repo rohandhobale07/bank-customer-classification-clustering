@@ -60,38 +60,48 @@ Wrote SQL queries (`mydb.sql`) to join and extract relevant fields across all 7 
 
 Predicted loan status (4 categories, encoded 0–3) from 868 loan records using 3 features: loan amount, duration, and payments (scaled with MinMaxScaler).
 
-Trained and benchmarked 4 classification models on a 70/30 split (607 train / 261 test):
+Trained and benchmarked 4 classification models on a 70/30 split (607 train / 261 test), using **balanced class weights** to account for a heavily skewed target distribution:
 
 | Model | Accuracy |
 |---|---|
 | KNN | 98.85% |
-| Logistic Regression | 90.80% |
+| Logistic Regression | 89.66% |
 | **Decision Tree** | **99.62%** |
-| Random Forest | 98.85% |
+| Random Forest | 99.62% |
 
-⚠️ **Class imbalance caveat:** the dataset is heavily skewed toward one loan-status class (648 of 868 records). The rarest class had only 1 example in the test set, and every model scored 0.00 precision/recall on it despite high overall accuracy — the headline numbers are real but inflated by the dominant class.
+⚠️ **Class imbalance caveat:** the dataset is heavily skewed toward one loan-status class (648 of 868 records). Even after applying balanced class weights, every model still scored 0.00 recall on the rarest class — which had only 1 example in the entire test set (and ~2–3 in the whole 868-record dataset). This is a genuine data limitation, not a failed fix: balanced weighting reweights the training loss, but it can't manufacture signal from a class with almost no examples to learn from. The 99%+ accuracy numbers are real, but they reflect performance on the 3 well-represented classes, not the rare 4th one.
 
 🔢 Clustering
 
 Segmented accounts using loan amount and balance as features.
 
-- Used the **Elbow Method** (WCSS across k=1–14) to guide cluster count selection
+- Used the **Elbow Method** (WCSS across k=1–14) to guide initial cluster count selection
 - Compared 4 linkage methods for Agglomerative Clustering (single, average, complete, ward) against K-Means
-- Selected **k=2** as the final cluster count
+- **Validated cluster count with silhouette score across k=2–14** — and the results overturned the elbow-method choice: k=7 scored highest (0.4497), not k=2 (0.4336), which the elbow curve alone had suggested
+- Selected **k=7** as the final, silhouette-validated cluster count
+
+| k | Silhouette Score |
+|---|---|
+| 2 | 0.4336 |
+| 6 | 0.4426 |
+| **7** | **0.4497** |
+| 13 | 0.4463 |
+| 14 | 0.4491 |
+
+(k=14 scored nearly as high as k=7, but 7 was chosen as the more interpretable, business-usable number of segments rather than defaulting to the single highest score.)
 
 💡 Key Business Insights
 
-- Loan status can be predicted with high accuracy from just 3 simple features (amount, duration, payments) using a Decision Tree
-- Real-world classification performance can look excellent on paper (99.6% accuracy) while completely failing on rare classes — a reminder to check per-class metrics, not just overall accuracy
-- Accounts separate into 2 meaningful clusters based on loan amount and balance, providing a simple segmentation for risk or service tiering
+- Loan status can be predicted with high accuracy from just 3 simple features (amount, duration, payments) using a Decision Tree or Random Forest
+- Balanced class weighting is not a cure-all — a class with almost no examples remains unlearnable regardless of reweighting, which matters more for real-world deployment than the headline accuracy number
+- Relying on the elbow method alone would have picked an under-validated cluster count (k=2); numeric silhouette validation surfaced a meaningfully better segmentation (k=7)
 
 ⭐ Project Highlights
 
 🗄️ Relational Tables Joined: 7 (account, card, client, disp, district, loan, transaction)
 
-🤖 Classification: 4 models compared, best = Decision Tree at 99.62% accuracy
+🤖 Classification: 4 models compared with balanced class weights, best = Decision Tree / Random Forest at 99.62% accuracy
 
-⚠️ Caveat: Severe class imbalance — rarest loan-status class had 0% recall despite high overall accuracy
+⚠️ Caveat: Rarest loan-status class (support=1) remained unlearnable even after class-weight correction — a data limitation, not a modeling failure
 
-🔢 Clustering: K-Means + 4-linkage-method Agglomerative Clustering comparison, k=2 selected via Elbow Method
-
+🔢 Clustering: K-Means + 4-linkage-method Agglomerative Clustering comparison, **k=7 selected via silhouette score** 
